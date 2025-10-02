@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大正浪漫戀愛物語</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function VisualNovel() {
+            const [scene, setScene] = useState('start');
+            const [displayText, setDisplayText] = useState('');
+            const [choices, setChoices] = useState([]);
+            const [currentBg, setCurrentBg] = useState('');
+            const [currentChar, setCurrentChar] = useState('');
+            const [showChoices, setShowChoices] = useState(false);
+            const [textSegments, setTextSegments] = useState([]);
+            const [currentSegment, setCurrentSegment] = useState(0);
+            const [showContinue, setShowContinue] = useState(false);
+            const [ending, setEnding] = useState('');
+            const [showEnding, setShowEnding] = useState(false);
+
+            // 圖片路徑 - 使用 GitHub raw 連結
+            const images = {
+                bg_room: './bg_room.jpg',
+                bg_street: './bg_street.jpeg',
+                char_heroine: './char_heroine.png',
+                char_boy1: './char_boy1.png',
+                char_boy2: './char_boy2.png'
+            };
+
+            // 遊戲劇本
+            const script = {
+                start: {
+                    bg: images.bg_room,
+                    char: images.char_heroine,
+                    text: '（溫暖的陽光透過紙窗灑落，我緩緩睜開眼睛）\n\n啊...真是個好天氣呢。\n\n今天要做些什麼好呢？',
+                    choices: [
+                        { text: '在庭院享受陽光', next: 'stay_home' },
+                        { text: '到鬧區走走', next: 'town' },
+                        { text: '去書局看書', next: 'bookstore' }
+                    ]
+                },
+                stay_home: {
+                    bg: images.bg_room,
+                    char: images.char_heroine,
+                    text: '我走到庭院，在走廊上坐下。\n\n微風輕拂，帶來櫻花的香氣。\n\n就這樣慵懶地度過一整天，似乎也不錯呢...\n\n（我閉上眼睛，享受這份寧靜）',
+                    ending: '天氣真好'
+                },
+                town: {
+                    bg: images.bg_street,
+                    char: images.char_boy1,
+                    text: '「啊，早安！天氣真好呢！」\n\n一位穿著褐色和服的青年朝我微笑著打招呼。',
+                    choices: [
+                        { text: '「是啊，真是個好日子」', next: 'town_chat' }
+                    ]
+                },
+                town_chat: {
+                    bg: images.bg_street,
+                    char: images.char_boy1,
+                    text: '「妳也是出來散步的嗎？這附近新開了一家茶屋，改天一起去吧！」\n\n他爽朗的笑容讓人感到很舒服。\n\n我們就這樣聊了起來，度過了愉快的午後時光。',
+                    ending: '春風和煦'
+                },
+                bookstore: {
+                    bg: images.bg_street,
+                    char: images.char_boy2,
+                    text: '書局裡安靜得只聽得見翻書聲。\n\n「失禮了。」\n\n一位穿著藍灰色和服的青年禮貌地從我身旁走過，拿起了一本文學作品。',
+                    choices: [
+                        { text: '「您也喜歡這位作家嗎？」', next: 'bookstore_chat' }
+                    ]
+                },
+                bookstore_chat: {
+                    bg: images.bg_street,
+                    char: images.char_boy2,
+                    text: '「嗯...他的文筆確實不錯。」\n\n他的語氣溫和但話不多。我們簡短地交流了幾句關於文學的看法。\n\n「那麼，告辭了。」\n\n他微微點頭後離開了。真是位有教養的人呢。',
+                    ending: '文質彬彬'
+                }
+            };
+
+            const splitTextIntoSegments = (text) => {
+                const maxLength = 120;
+                const paragraphs = text.split('\n\n');
+                const segments = [];
+                
+                for (let para of paragraphs) {
+                    if (para.length <= maxLength) {
+                        segments.push(para);
+                    } else {
+                        const sentences = para.split(/([。！？\n])/);
+                        let currentSeg = '';
+                        
+                        for (let i = 0; i < sentences.length; i += 2) {
+                            const sentence = sentences[i] + (sentences[i + 1] || '');
+                            if ((currentSeg + sentence).length > maxLength && currentSeg) {
+                                segments.push(currentSeg.trim());
+                                currentSeg = sentence;
+                            } else {
+                                currentSeg += sentence;
+                            }
+                        }
+                        if (currentSeg) segments.push(currentSeg.trim());
+                    }
+                }
+                
+                return segments.filter(s => s.length > 0);
+            };
+
+            useEffect(() => {
+                if (script[scene]) {
+                    const current = script[scene];
+                    setCurrentBg(current.bg);
+                    setCurrentChar(current.char);
+                    setDisplayText('');
+                    setShowChoices(false);
+                    setShowContinue(false);
+                    setShowEnding(false);
+                    setEnding('');
+                    
+                    const segments = splitTextIntoSegments(current.text);
+                    setTextSegments(segments);
+                    setCurrentSegment(0);
+                    
+                    let index = 0;
+                    const firstSegment = segments[0];
+                    const interval = setInterval(() => {
+                        if (index < firstSegment.length) {
+                            setDisplayText(firstSegment.slice(0, index + 1));
+                            index++;
+                        } else {
+                            clearInterval(interval);
+                            if (segments.length > 1) {
+                                setShowContinue(true);
+                            } else {
+                                if (current.choices) {
+                                    setTimeout(() => {
+                                        setChoices(current.choices);
+                                        setShowChoices(true);
+                                    }, 500);
+                                } else if (current.ending) {
+                                    setTimeout(() => {
+                                        setEnding(current.ending);
+                                        setShowEnding(true);
+                                    }, 1000);
+                                }
+                            }
+                        }
+                    }, 50);
+
+                    return () => clearInterval(interval);
+                }
+            }, [scene]);
+
+            const handleContinue = () => {
+                const nextSegment = currentSegment + 1;
+                
+                if (nextSegment < textSegments.length) {
+                    setCurrentSegment(nextSegment);
+                    setShowContinue(false);
+                    
+                    let index = 0;
+                    const segment = textSegments[nextSegment];
+                    setDisplayText('');
+                    
+                    const interval = setInterval(() => {
+                        if (index < segment.length) {
+                            setDisplayText(segment.slice(0, index + 1));
+                            index++;
+                        } else {
+                            clearInterval(interval);
+                            if (nextSegment < textSegments.length - 1) {
+                                setShowContinue(true);
+                            } else {
+                                const current = script[scene];
+                                if (current.choices) {
+                                    setTimeout(() => {
+                                        setChoices(current.choices);
+                                        setShowChoices(true);
+                                    }, 500);
+                                } else if (current.ending) {
+                                    setTimeout(() => {
+                                        setEnding(current.ending);
+                                        setShowEnding(true);
+                                    }, 1000);
+                                }
+                            }
+                        }
+                    }, 50);
+                }
+            };
+
+            const handleChoice = (next) => {
+                setScene(next);
+            };
+
+            const handleRestart = () => {
+                setScene('start');
+            };
+
+            return (
+                <div className="relative w-full h-screen overflow-hidden bg-black">
+                    <div className="absolute inset-0">
+                        <img 
+                            src={currentBg}
+                            alt="background"
+                            className="w-full h-full object-cover"
+                            style={{ filter: 'brightness(0.85)' }}
+                        />
+                        <div className="absolute inset-0 bg-amber-900/30 -z-10"></div>
+                    </div>
+
+                    {currentChar && !showEnding && (
+                        <div className="absolute inset-0 flex items-end justify-center pb-48 pointer-events-none">
+                            <img 
+                                src={currentChar}
+                                alt="character"
+                                className="h-96 object-contain drop-shadow-2xl"
+                                style={{ animation: 'fadeIn 0.5s ease-in', maxWidth: '90%' }}
+                            />
+                        </div>
+                    )}
+
+                    {showChoices && (
+                        <div className="absolute inset-0 flex items-center justify-center z-30 px-6">
+                            <div className="w-full max-w-md space-y-4">
+                                {choices.map((choice, index) => (
+                                    <button
+                                        key={index}
+                                        onClick={() => handleChoice(choice.next)}
+                                        className="w-full bg-amber-50/95 hover:bg-amber-100 text-amber-900 py-4 px-6 rounded-lg border-4 border-amber-900/80 transition-all duration-300 shadow-2xl hover:shadow-amber-500/50 hover:scale-105 backdrop-blur-sm text-lg"
+                                        style={{ fontFamily: 'Georgia, serif', animation: `slideIn 0.3s ease-out ${index * 0.1}s both` }}
+                                    >
+                                        ▸ {choice.text}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {showEnding && (
+                        <div className="absolute inset-0 flex items-center justify-center z-40 bg-black/60 backdrop-blur-sm">
+                            <div className="text-center space-y-6 px-6">
+                                <div className="text-6xl text-amber-100 mb-4" style={{ animation: 'fadeIn 1s ease-in' }}>✿</div>
+                                <div className="bg-amber-900/90 text-amber-50 px-10 py-6 rounded-2xl text-2xl backdrop-blur-sm border-4 border-amber-600 shadow-2xl"
+                                    style={{ fontFamily: 'Georgia, serif', animation: 'scaleIn 0.5s ease-out 0.3s both' }}>
+                                    {ending}
+                                </div>
+                                <button
+                                    onClick={handleRestart}
+                                    className="mt-8 bg-amber-100/90 hover:bg-amber-200 text-amber-900 py-3 px-8 rounded-lg border-3 border-amber-800 transition-all duration-300 shadow-lg hover:shadow-xl text-base"
+                                    style={{ fontFamily: 'Georgia, serif', animation: 'fadeIn 0.5s ease-in 1s both' }}>
+                                    重新開始
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {!showChoices && !showEnding && (
+                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/95 to-transparent pt-32 pb-8 px-4 z-20">
+                            <div className="max-w-3xl mx-auto">
+                                <div className="bg-amber-50/95 rounded-lg p-5 border-4 border-amber-900/80 shadow-2xl backdrop-blur-sm h-40 flex items-center justify-center relative">
+                                    <p className="text-gray-900 leading-relaxed whitespace-pre-wrap text-base" style={{ fontFamily: 'Georgia, serif' }}>
+                                        {displayText}
+                                    </p>
+                                    {showContinue && (
+                                        <button onClick={handleContinue} className="absolute bottom-3 right-3 animate-bounce">
+                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-amber-900">
+                                                <path d="M7 10L12 15L17 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                            </svg>
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    <style>{`
+                        @keyframes fadeIn {
+                            from { opacity: 0; }
+                            to { opacity: 1; }
+                        }
+                        @keyframes slideIn {
+                            from { opacity: 0; transform: translateY(20px); }
+                            to { opacity: 1; transform: translateY(0); }
+                        }
+                        @keyframes scaleIn {
+                            from { opacity: 0; transform: scale(0.8); }
+                            to { opacity: 1; transform: scale(1); }
+                        }
+                    `}</style>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<VisualNovel />, document.getElementById('root'));
+    </script>
+</body>
+</html>
